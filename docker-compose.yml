@@ -1,0 +1,10 @@
+services:
+  innFastApi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: innFastApi
+    volumes:
+      - ./logs:/code/.logs
+    ports:
+      - "8001:8001"

@@ -43,9 +43,6 @@ def get_access_token():
 
     return response.json().get('access_token')
 
-@app.get("/chat")
-def request_data():
-    return {"message": "Hello World"}
 
 # Endpoint en FastAPI que maneja la lógica
 @app.post("/chat")
