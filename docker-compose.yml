@@ -1,5 +1,5 @@
 services:
-  innFastApi:
+  inn-fast-api:
     build:
       context: .
       dockerfile: Dockerfile
