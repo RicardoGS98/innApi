@@ -12,7 +12,7 @@ app = FastAPI()
 # Configurar el middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://inn-chat-bot.vercel.app/"],  # Permitir el origen de tu app Next.js
+    allow_origins=["*"],  # Permitir el origen de tu app Next.js
     allow_credentials=True,
     allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
     allow_headers=["*"],  # Permitir todos los headers
@@ -43,6 +43,9 @@ def get_access_token():
 
     return response.json().get('access_token')
 
+@app.get("/chat")
+def request_data():
+    return {"message": "Hello World"}
 
 # Endpoint en FastAPI que maneja la lógica
 @app.post("/chat")
