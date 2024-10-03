@@ -7,6 +7,8 @@ WORKDIR /code
 COPY requirements.txt ./
 COPY main.py ./
 COPY .env ./
+COPY server.key ./
+COPY server.crt ./
 
 # Crea la carpeta de logs a compartir
 RUN mkdir ".logs"
