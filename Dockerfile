@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN which gunicorn
 
 # Comando para ejecutar tu aplicación con gunicorn
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8001", "--log-level=trace", "--keyfile=server.key", "--certfile=server.crt"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--log-level=trace", "--keyfile=server.key", "--certfile=server.crt"]
