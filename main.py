@@ -1,4 +1,5 @@
 import os
+import random
 
 import requests
 from dotenv import load_dotenv
@@ -19,24 +20,36 @@ app.add_middleware(
 )
 
 TOKEN_URL = os.environ['TOKEN_URL']
-CLIENT_ID = os.environ['CLIENT_ID']
-CLIENT_SECRET = os.environ['CLIENT_SECRET']
-USERNAME = os.environ['USERNAME']
-PASSWORD = os.environ['PASSWORD']
+PUBLIC_API_TOKEN_URL = os.environ['PUBLIC_API_TOKEN_URL']
+
+PAYLOAD = {
+    'grant_type': 'password',
+    'client_id': os.environ['CLIENT_ID'],
+    'client_secret': os.environ['CLIENT_SECRET'],
+    'username': os.environ['USERNAME'],
+    'password': os.environ['PASSWORD']
+}
+
+# PublicApi credentials
+PUBLIC_API_PAYLOAD = {
+    'grant_type': 'client_credentials',
+    'client_id': os.environ['PUBLIC_API_CLIENT_ID'],
+    'client_secret': os.environ['PUBLIC_API_CLIENT_SECRET'],
+    'scope': os.environ['PUBLIC_API_SCOPE']
+}
 
 
 # Función para obtener un nuevo token
-def get_access_token():
-    payload = {
-        'grant_type': 'password',
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-        'username': USERNAME,
-        'password': PASSWORD
-    }
+def get_access_token(public_api: bool = False):
+    payload = PAYLOAD
+    url = TOKEN_URL
+    if public_api:
+        payload = PUBLIC_API_PAYLOAD
+        url = PUBLIC_API_TOKEN_URL
+
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-    response = requests.post(TOKEN_URL, data=payload, headers=headers)
+    response = requests.post(url, data=payload, headers=headers)
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Error obtaining access token")
@@ -46,16 +59,23 @@ def get_access_token():
 
 # Endpoint en FastAPI que maneja la lógica
 @app.post("/chat")
-def request_data(message: str = Body()):
+def request_data(
+        message: str = Body(),
+        conversationId: int = Body(None),
+        companyId: int = Body(None)
+):
     try:
+        if not conversationId:
+            conversationId = random.randint(1, 9999)
+
         # 1. Obtener el token
         access_token = get_access_token()
 
         # 2. Usar el token para hacer la petición a la API externa
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'id-coversation': '0001',
-            'x-company': '1066'
+            'id-coversation': str(conversationId),
+            'x-company': str(companyId)
         }
         external_response = requests.post(
             'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/user-question/',
@@ -68,7 +88,20 @@ def request_data(message: str = Body()):
             raise HTTPException(status_code=external_response.status_code, detail="Error fetching external data")
 
         # 4. Retornar la respuesta de la API externa como la respuesta del endpoint
-        return external_response.json()
+        return {**external_response.json(), 'conversationId': conversationId}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/companies")
+def get_companies():
+    try:
+        access_token = get_access_token(True)
+        headers = {
+            'Authorization': f'Bearer {access_token}'
+        }
+        return requests.get('https://webapi.mojito360.com/api/companies', headers=headers).json()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
