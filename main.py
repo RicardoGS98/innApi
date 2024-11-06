@@ -107,8 +107,36 @@ def delete_chat(
             'Authorization': f'Bearer {access_token}',
             'Conversation-Id': str(conversationId)
         }
-        external_response = requests.post(
+        external_response = requests.delete(
             'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/clean-conversation/',
+            headers=headers
+        )
+        return external_response.json()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/bug")
+def post_bug(
+        companyId: int = Body(),
+        conversationId: int = Body(),
+        comment: str = Body()
+):
+    try:
+
+        # 1. Obtener el token
+        access_token = get_access_token()
+
+        # 2. Usar el token para hacer la petición a la API externa
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Conversation-Id': str(conversationId),
+            'Company-Id': str(companyId),
+            'Comment': str(comment)
+        }
+        external_response = requests.post(
+            'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/bug-report/',
             headers=headers
         )
         return external_response.json()
