@@ -133,7 +133,7 @@ def post_bug(
             'Authorization': f'Bearer {access_token}',
             'Conversation-Id': str(conversationId),
             'Company-Id': str(companyId),
-            'Comment': str(comment)
+            'Comment': comment
         }
         external_response = requests.post(
             'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/bug-report/',
