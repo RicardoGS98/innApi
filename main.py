@@ -18,7 +18,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://innovation-xi.vercel.app"],  # Solo permitir este origen
     allow_credentials=True,
-    allow_methods=["POST"],  # Solo permitir el método GET
+    allow_methods=["GET"],  # Solo permitir el método GET
     allow_headers=["*"],  # Permitir todos los headers
 )
 
