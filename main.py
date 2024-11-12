@@ -6,21 +6,11 @@ from datetime import datetime, timezone
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 load_dotenv(override=True)
 
 app = FastAPI()
-
-# Configurar el middleware CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://innovation-xi.vercel.app"],  # Solo permitir este origen
-    allow_credentials=True,
-    allow_methods=["GET"],  # Solo permitir el método GET
-    allow_headers=["*"],  # Permitir todos los headers
-)
 
 TOKEN_URL = os.environ['TOKEN_URL']
 
@@ -59,17 +49,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         )
 
 
-# Función para obtener un nuevo token
-def get_access_token():
+# Endpoint protegido
+@app.get("/token")
+async def get_token(payload: dict = Depends(verify_token)):
     response = requests.post(TOKEN_URL, data=PAYLOAD, headers={'Content-Type': 'application/x-www-form-urlencoded'})
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Error obtaining access token")
 
     return response.json()
-
-
-# Endpoint protegido
-@app.get("/token")
-async def get_token(payload: dict = Depends(verify_token)):
-    return get_access_token()
