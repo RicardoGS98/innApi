@@ -80,7 +80,7 @@ def request_data(
             conversationId = random.randint(1, 9999)
 
         # 1. Obtener el token
-        access_token = get_access_token()
+        access_token = get_access_token().get("access_token")
 
         # 2. Usar el token para hacer la petición a la API externa
         headers = {
@@ -111,7 +111,7 @@ def delete_chat(
 ):
     try:
         # 1. Obtener el token
-        access_token = get_access_token()
+        access_token = get_access_token().get("access_token")
 
         # 2. Usar el token para hacer la petición a la API externa
         headers = {
@@ -137,7 +137,7 @@ def post_bug(
     try:
 
         # 1. Obtener el token
-        access_token = get_access_token()
+        access_token = get_access_token().get("access_token")
 
         # 2. Usar el token para hacer la petición a la API externa
         headers = {
