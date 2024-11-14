@@ -1,14 +1,11 @@
-import asyncio
 import base64
 import json
 import os
-import random
 from datetime import datetime, timezone
 
-import httpx
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, Body
+from fastapi import FastAPI, HTTPException, Depends, Body, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.cors import CORSMiddleware
 
@@ -84,54 +81,44 @@ async def get_token(payload: dict = Depends(verify_token)):
 
 
 # Endpoint en FastAPI que maneja la lógica
-@app.post("/chat")
+@app.post("/user-question/")
 def request_data(
-        message: str = Body(),
-        conversationId: int = Body(None),
-        companyId: int = Body(None)
+        data=Body(),
+        id_coversation: str = Header(),
+        x_company: str = Header(),
+        authorization: str = Header()
 ):
     try:
-        if not conversationId:
-            conversationId = random.randint(1, 9999)
 
-        # 1. Obtener el token
-        access_token = get_access_token().get("access_token")
-
-        # 2. Usar el token para hacer la petición a la API externa
         headers = {
-            'Authorization': f'Bearer {access_token}',
-            'id-coversation': str(conversationId),
-            'x-company': str(companyId)
+            'Authorization': authorization,
+            'id-coversation': id_coversation,
+            'x-company': x_company
         }
         external_response = requests.post(
             BOT_URL + '/user-question/',
-            data={'input_question': message},
+            data={'input_question': data.get('input_question')},
             headers=headers
         )
 
-        # 3. Si la respuesta de la API externa no es 200, devolver un error
         if external_response.status_code != 200:
             raise HTTPException(status_code=external_response.status_code, detail="Error fetching external data")
 
-        # 4. Retornar la respuesta de la API externa como la respuesta del endpoint
-        return {**external_response.json(), 'conversationId': conversationId}
+        return external_response.json()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/chat/{conversationId}")
+@app.delete("/clean-conversation/")
 def delete_chat(
-        conversationId: int,
+        conversation_id: str = Header(),
+        authorization: str = Header()
 ):
     try:
-        # 1. Obtener el token
-        access_token = get_access_token().get("access_token")
-
-        # 2. Usar el token para hacer la petición a la API externa
         headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Conversation-Id': str(conversationId)
+            'Authorization': authorization,
+            'Conversation-Id': conversation_id
         }
         external_response = requests.delete(
             BOT_URL + '/clean-conversation/',
@@ -143,40 +130,24 @@ def delete_chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/bug")
+@app.post("/bug-report/")
 async def post_bug(
-        companyId: int = Body(),
-        conversationId: int = Body(),
-        comment: str = Body()
+        company_id: str = Header(),
+        conversation_id: str = Header(),
+        comment: str = Body(),
+        authorization: str = Header()
 ):
     try:
 
-        # 1. Obtener el token
-        access_token = get_access_token().get("access_token")
-
-        # 2. Usar el token para hacer la petición a la API externa
         headers = {
-            'Authorization': f'Bearer {access_token}',
-            'Conversation-Id': str(conversationId),
-            'Company-Id': str(companyId),
+            'Authorization': authorization,
+            'Conversation-Id': conversation_id,
+            'Company-Id': company_id,
             'Comment': comment
         }
-        async with httpx.AsyncClient() as client:
-            # Ejecutar ambas peticiones de forma simultánea
-            bot_task = client.post(f"{BOT_URL}/bug-report/", headers=headers)
-            azure_task = client.post(
-                AZURE_URL,
-                json={
-                    'comment': json.loads(comment).get("comment"),
-                    'conversationId': conversationId,
-                    'companyId': companyId
-                }
-            )
+        response = requests.post(f"{BOT_URL}/bug-report/", headers=headers)
 
-            # Esperar a que ambas peticiones finalicen
-            bot_response, _ = await asyncio.gather(bot_task, azure_task)
-
-        return bot_response.json()
+        return response.json()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
