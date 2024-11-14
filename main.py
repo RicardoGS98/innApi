@@ -10,10 +10,20 @@ import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Body
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.middleware.cors import CORSMiddleware
 
 load_dotenv(override=True)
 
 app = FastAPI()
+
+# Configurar el middleware CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Solo permitir este origen
+    allow_credentials=True,
+    allow_methods=["*"],  # Solo permitir el método GET
+    allow_headers=["*"],  # Permitir todos los headers
+)
 
 TOKEN_URL = os.environ['TOKEN_URL']
 
