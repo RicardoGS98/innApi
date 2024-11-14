@@ -1,9 +1,11 @@
+import asyncio
 import base64
 import json
 import os
 import random
 from datetime import datetime, timezone
 
+import httpx
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Body
@@ -22,6 +24,9 @@ PAYLOAD = {
     'username': os.environ['USERNAME'],
     'password': os.environ['PASSWORD']
 }
+
+BOT_URL = os.environ['BOT_URL']
+AZURE_URL = os.environ['AZURE_URL']
 
 # Definimos el esquema Bearer para autenticación
 security = HTTPBearer()
@@ -89,7 +94,7 @@ def request_data(
             'x-company': str(companyId)
         }
         external_response = requests.post(
-            'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/user-question/',
+            BOT_URL + '/user-question/',
             data={'input_question': message},
             headers=headers
         )
@@ -119,7 +124,7 @@ def delete_chat(
             'Conversation-Id': str(conversationId)
         }
         external_response = requests.delete(
-            'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/clean-conversation/',
+            BOT_URL + '/clean-conversation/',
             headers=headers
         )
         return external_response.json()
@@ -129,7 +134,7 @@ def delete_chat(
 
 
 @app.post("/bug")
-def post_bug(
+async def post_bug(
         companyId: int = Body(),
         conversationId: int = Body(),
         comment: str = Body()
@@ -146,11 +151,22 @@ def post_bug(
             'Company-Id': str(companyId),
             'Comment': comment
         }
-        external_response = requests.post(
-            'https://mojito360-bed5bfgee5g4cthk.northeurope-01.azurewebsites.net/api/bug-report/',
-            headers=headers
-        )
-        return external_response.json()
+        async with httpx.AsyncClient() as client:
+            # Ejecutar ambas peticiones de forma simultánea
+            bot_task = client.post(f"{BOT_URL}/bug-report/", headers=headers)
+            azure_task = client.post(
+                AZURE_URL,
+                json={
+                    'comment': json.loads(comment).get("comment"),
+                    'conversationId': conversationId,
+                    'companyId': companyId
+                }
+            )
+
+            # Esperar a que ambas peticiones finalicen
+            bot_response, _ = await asyncio.gather(bot_task, azure_task)
+
+        return bot_response.json()
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
