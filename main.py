@@ -81,7 +81,7 @@ async def get_token(payload: dict = Depends(verify_token)):
 
 
 # Endpoint en FastAPI que maneja la lógica
-@app.post("/user-question/")
+@app.post("/user-question")
 def request_data(
         data=Body(),
         id_coversation: str = Header(),
@@ -110,7 +110,7 @@ def request_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/clean-conversation/")
+@app.delete("/clean-conversation")
 def delete_chat(
         conversation_id: str = Header(),
         authorization: str = Header()
@@ -130,7 +130,7 @@ def delete_chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/bug-report/")
+@app.post("/bug-report")
 async def post_bug(
         company_id: str = Header(),
         conversation_id: str = Header(),
