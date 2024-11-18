@@ -134,7 +134,7 @@ def delete_chat(
 async def post_bug(
         company_id: str = Header(),
         conversation_id: str = Header(),
-        comment: str = Body(),
+        comment: str = Header(),
         authorization: str = Header()
 ):
     try:
