@@ -151,3 +151,21 @@ async def post_bug(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get('/warnings')
+async def warnings():
+    try:
+        with open('warning.json', 'r') as f:
+            return json.loads(f.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/warnings')
+async def post_warning(data=Body(...)):
+    try:
+        with open('warning.json', 'w') as f:
+            json.dump(data, f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
