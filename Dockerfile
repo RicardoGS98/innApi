@@ -7,6 +7,8 @@ WORKDIR /code
 COPY requirements.txt ./
 COPY main.py ./
 COPY .env ./
+COPY server.key ./
+COPY server.crt ./
 
 # Crea la carpeta de logs a compartir
 RUN mkdir ".logs"
@@ -16,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN which gunicorn
 
 # Comando para ejecutar tu aplicación con gunicorn
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "main:app", "--bind", "0.0.0.0:8000", "--log-level=trace", "--keyfile=server.key", "--certfile=server.crt"]
