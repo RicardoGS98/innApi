@@ -16,7 +16,7 @@ app = FastAPI()
 # Configurar el middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["innovation-xi.vercel.app"],  # Solo permitir este origen
+    allow_origins=["*"],  # Solo permitir este origen
     allow_credentials=True,
     allow_methods=["*"],  # Solo permitir el método GET
     allow_headers=["*"],  # Permitir todos los headers
