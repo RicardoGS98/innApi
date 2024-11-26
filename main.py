@@ -33,7 +33,6 @@ PAYLOAD = {
 }
 
 BOT_URL = os.environ['BOT_URL']
-AZURE_URL = os.environ['AZURE_URL']
 
 # Definimos el esquema Bearer para autenticación
 security = HTTPBearer()
@@ -169,3 +168,9 @@ async def post_warning(data=Body(...)):
             json.dump(data, f)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+if __name__ == '__main__':
+    import uvicorn
+
+    uvicorn.run(app)
