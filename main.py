@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Body, Header
+from fastapi.params import Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.cors import CORSMiddleware
 
@@ -96,7 +97,7 @@ def request_data(
         }
         external_response = requests.post(
             BOT_URL + '/user-question/',
-            data={'input_question': data.get('input_question')},
+            data=data['input_question'],
             headers=headers
         )
 
@@ -148,6 +149,56 @@ async def post_bug(
 
         return response.json()
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/create-talk")
+async def create_talk(authorization: str = Header()):
+    try:
+        response = requests.get(f"{BOT_URL}/create-talk/", headers={'Authorization': authorization})
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/talks")
+async def get_talks(
+        id_conversation: str = Query(),
+        user_email: str = Query(),
+        authorization: str = Header()
+):
+    try:
+        params = {"id-conversation": id_conversation, "user_email": user_email}
+        response = requests.get(f"{BOT_URL}/talks/", params=params, headers={'Authorization': authorization})
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/talks")
+async def post_talks(
+        data=Body(),
+        authorization: str = Header()
+):
+    try:
+        response = requests.post(f"{BOT_URL}/talks/", data=data, headers={'Authorization': authorization})
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/talks")
+async def delete_talks(
+        id_conversation: str = Header(),
+        authorization: str = Header()
+):
+    try:
+        response = requests.delete(
+            f"{BOT_URL}/talks/",
+            headers={'Authorization': authorization, 'id-conversation': id_conversation}
+        )
+        return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
