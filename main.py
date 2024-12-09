@@ -97,7 +97,7 @@ def request_data(
         }
         external_response = requests.post(
             BOT_URL + '/user-question/',
-            data=data['input_question'],
+            data=data,
             headers=headers
         )
 
