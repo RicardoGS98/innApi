@@ -164,12 +164,14 @@ async def create_talk(authorization: str = Header()):
 
 @app.get("/talks")
 async def get_talks(
-        id_conversation: str = Query(),
+        id_conversation: str = Query(None),
         user_email: str = Query(),
         authorization: str = Header()
 ):
     try:
-        params = {"id-conversation": id_conversation, "user_email": user_email}
+        params = {"user_email": user_email}
+        if id_conversation:
+            params["id-conversation"] = id_conversation
         response = requests.get(f"{BOT_URL}/talks/", params=params, headers={'Authorization': authorization})
         return response.json()
     except Exception as e:
