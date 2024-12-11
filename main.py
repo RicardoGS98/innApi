@@ -110,6 +110,31 @@ def request_data(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/user-question")
+def get_user_questions(
+        id_coversation: str = Header(),
+        authorization: str = Header()
+):
+    try:
+
+        headers = {
+            'Authorization': authorization,
+            'id-coversation': id_coversation
+        }
+        external_response = requests.get(
+            BOT_URL + '/user-question/',
+            headers=headers
+        )
+
+        if external_response.status_code != 200:
+            raise HTTPException(status_code=external_response.status_code, detail="Error fetching external data")
+
+        return external_response.json()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.delete("/clean-conversation")
 def delete_chat(
         conversation_id: str = Header(),
