@@ -233,8 +233,9 @@ async def delete_talks(
 @app.get('/warnings')
 async def warnings():
     try:
-        with open('warning.json', 'r') as f:
-            return json.loads(f.read())
+        cursor.execute("SELECT * FROM warnings")
+        results = cursor.fetchall()
+        return [{"id": row[0], "data": row[1]} for row in results]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -242,13 +243,27 @@ async def warnings():
 @app.post('/warnings')
 async def post_warning(data=Body(...)):
     try:
-        with open('warning.json', 'w') as f:
-            json.dump(data, f)
+        cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL", (json.dumps(data),))
+        conn.commit()
+        return {"message": "Warning saved successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == '__main__':
     import uvicorn
+    import sqlite3
+
+    # Conectar a SQLite
+    conn = sqlite3.connect("warnings.db", check_same_thread=False)
+    cursor = conn.cursor()
+
+    # Crear tabla (si no existe)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS warnings (
+        data TEXT NOT NULL
+    )
+    """)
+    conn.commit()
 
     uvicorn.run(app)
