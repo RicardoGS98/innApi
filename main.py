@@ -267,22 +267,17 @@ async def warnings():
 @app.post('/warnings')
 async def post_warning(data=Body(...)):
     """
-    Endpoint para actualizar la única advertencia en la tabla 'warnings'.
-    Si no existe, se crea; si existe, se actualiza.
+    Endpoint para reemplazar la única advertencia en la tabla 'warnings'.
     """
     try:
-        # Inserta o actualiza la única entrada
-        cursor.execute("""
-            INSERT INTO warnings (id, data)
-            VALUES (1, %s)
-            ON CONFLICT (id)
-            DO UPDATE SET data = EXCLUDED.data;
-        """, (json.dumps(data),))
+        # Eliminar cualquier fila existente
+        cursor.execute("DELETE FROM warnings;")
+        # Insertar la nueva fila
+        cursor.execute("INSERT INTO warnings (data) VALUES (%s);", (json.dumps(data),))
         conn.commit()
         return {"message": "Warning saved successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar la advertencia: {str(e)}")
-
 
 
 if __name__ == '__main__':
