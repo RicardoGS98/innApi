@@ -54,11 +54,6 @@ DB_CONFIG = {
     "port": POSTGRES_PORT,  # Cambia si no es el puerto predeterminado
 }
 
-# Establecer conexión global
-conn = psycopg2.connect(**DB_CONFIG)
-conn.autocommit = True  # Para confirmar automáticamente las transacciones
-cursor = conn.cursor()
-
 
 # Verifica la expiración
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -254,6 +249,10 @@ async def delete_talks(
 @app.get('/warnings')
 async def warnings():
     try:
+        # Establecer conexión global
+        conn = psycopg2.connect(**DB_CONFIG)
+        conn.autocommit = True  # Para confirmar automáticamente las transacciones
+        cursor = conn.cursor()
         cursor.execute("SELECT * FROM warnings;")
         results = cursor.fetchall()
         return [{"id": row[0], "data": row[1]} for row in results]
@@ -264,6 +263,10 @@ async def warnings():
 @app.post('/warnings')
 async def post_warning(data=Body(...)):
     try:
+        # Establecer conexión global
+        conn = psycopg2.connect(**DB_CONFIG)
+        conn.autocommit = True  # Para confirmar automáticamente las transacciones
+        cursor = conn.cursor()
         cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL;", (json.dumps(data),))
         conn.commit()
         return {"message": "Warning saved successfully"}
