@@ -18,9 +18,9 @@ app = FastAPI()
 # Configurar el middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Solo permitir este origen
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Solo permitir el método GET
+    allow_methods=["*"],
     allow_headers=["*"],  # Permitir todos los headers
 )
 
@@ -29,11 +29,13 @@ conn = sqlite3.connect("warnings.db", check_same_thread=False)
 cursor = conn.cursor()
 
 # Crear tabla (si no existe)
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS warnings (
-    data TEXT NOT NULL
+cursor.execute(
+    """
+    CREATE TABLE IF NOT EXISTS warnings (
+        data TEXT NOT NULL
+    )
+    """
 )
-""")
 conn.commit()
 
 TOKEN_URL = os.environ['TOKEN_URL']
