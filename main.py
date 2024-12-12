@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import sqlite3
 from datetime import datetime, timezone
 
 import requests
@@ -22,6 +23,18 @@ app.add_middleware(
     allow_methods=["*"],  # Solo permitir el método GET
     allow_headers=["*"],  # Permitir todos los headers
 )
+
+# Conectar a SQLite
+conn = sqlite3.connect("warnings.db", check_same_thread=False)
+cursor = conn.cursor()
+
+# Crear tabla (si no existe)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS warnings (
+    data TEXT NOT NULL
+)
+""")
+conn.commit()
 
 TOKEN_URL = os.environ['TOKEN_URL']
 
@@ -233,7 +246,7 @@ async def delete_talks(
 @app.get('/warnings')
 async def warnings():
     try:
-        cursor.execute("SELECT * FROM warnings")
+        cursor.execute("SELECT * FROM warnings;")
         results = cursor.fetchall()
         return [{"id": row[0], "data": row[1]} for row in results]
     except Exception as e:
@@ -243,7 +256,7 @@ async def warnings():
 @app.post('/warnings')
 async def post_warning(data=Body(...)):
     try:
-        cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL", (json.dumps(data),))
+        cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL;", (json.dumps(data),))
         conn.commit()
         return {"message": "Warning saved successfully"}
     except Exception as e:
@@ -252,18 +265,5 @@ async def post_warning(data=Body(...)):
 
 if __name__ == '__main__':
     import uvicorn
-    import sqlite3
-
-    # Conectar a SQLite
-    conn = sqlite3.connect("warnings.db", check_same_thread=False)
-    cursor = conn.cursor()
-
-    # Crear tabla (si no existe)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS warnings (
-        data TEXT NOT NULL
-    )
-    """)
-    conn.commit()
 
     uvicorn.run(app)
