@@ -1,9 +1,9 @@
 import base64
 import json
 import os
-import sqlite3
 from datetime import datetime, timezone
 
+import psycopg2
 import requests
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Body, Header
@@ -12,20 +12,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.cors import CORSMiddleware
 
 load_dotenv(override=True)
-
-# Conectar a SQLite
-_conn = sqlite3.connect("warnings.db", check_same_thread=False)
-_cursor = _conn.cursor()
-
-# Crear tabla (si no existe)
-_cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS warnings (
-        data TEXT NOT NULL
-    )
-    """
-)
-_conn.commit()
 
 app = FastAPI()
 
@@ -52,6 +38,26 @@ BOT_URL = os.environ['BOT_URL']
 
 # Definimos el esquema Bearer para autenticación
 security = HTTPBearer()
+
+POSTGRES_USERNAME = os.environ['POSTGRES_USERNAME']
+POSTGRES_PASSWORD = os.environ['POSTGRES_PASSWORD']
+POSTGRES_HOST = os.environ['POSTGRES_HOST']
+POSTGRES_PORT = os.environ['POSTGRES_PORT']
+POSTGRES_DB = os.environ['POSTGRES_DB']
+
+# Configuración de la conexión a PostgreSQL
+DB_CONFIG = {
+    "dbname": POSTGRES_DB,
+    "user": POSTGRES_USERNAME,
+    "password": POSTGRES_PASSWORD,
+    "host": POSTGRES_HOST,
+    "port": POSTGRES_PORT,  # Cambia si no es el puerto predeterminado
+}
+
+# Establecer conexión global
+conn = psycopg2.connect(**DB_CONFIG)
+conn.autocommit = True  # Para confirmar automáticamente las transacciones
+cursor = conn.cursor()
 
 
 # Verifica la expiración
@@ -248,8 +254,8 @@ async def delete_talks(
 @app.get('/warnings')
 async def warnings():
     try:
-        _cursor.execute("SELECT * FROM warnings;")
-        results = _cursor.fetchall()
+        cursor.execute("SELECT * FROM warnings;")
+        results = cursor.fetchall()
         return [{"id": row[0], "data": row[1]} for row in results]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -258,8 +264,8 @@ async def warnings():
 @app.post('/warnings')
 async def post_warning(data=Body(...)):
     try:
-        _cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL;", (json.dumps(data),))
-        _conn.commit()
+        cursor.execute("UPDATE warnings SET data=? WHERE data IS NOT NULL;", (json.dumps(data),))
+        conn.commit()
         return {"message": "Warning saved successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
