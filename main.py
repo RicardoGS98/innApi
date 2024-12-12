@@ -1,7 +1,7 @@
 import base64
 import json
 import os
-import sqlite3
+# import sqlite3
 from datetime import datetime, timezone
 
 import requests
@@ -24,19 +24,19 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los headers
 )
 
-# Conectar a SQLite
-conn = sqlite3.connect("warnings.db", check_same_thread=False)
-cursor = conn.cursor()
-
-# Crear tabla (si no existe)
-cursor.execute(
-    """
-    CREATE TABLE IF NOT EXISTS warnings (
-        data TEXT NOT NULL
-    )
-    """
-)
-conn.commit()
+# # Conectar a SQLite
+# conn = sqlite3.connect("warnings.db", check_same_thread=False)
+# cursor = conn.cursor()
+#
+# # Crear tabla (si no existe)
+# cursor.execute(
+#     """
+#     CREATE TABLE IF NOT EXISTS warnings (
+#         data TEXT NOT NULL
+#     )
+#     """
+# )
+# conn.commit()
 
 TOKEN_URL = os.environ['TOKEN_URL']
 
