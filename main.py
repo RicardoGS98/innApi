@@ -117,7 +117,7 @@ def request_data(
             'id-coversation': id_coversation,
             'x-company': x_company
         }
-        if isinstance(data, str):
+        if isinstance(data, bytes):
             data = json.loads(data.decode('utf-8'))
         # Enable streaming by setting stream=True
         external_response = requests.post(
