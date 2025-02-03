@@ -120,7 +120,7 @@ def request_data(
         # Enable streaming by setting stream=True
         external_response = requests.post(
             BOT_URL + '/user-question/',
-            data=data,
+            data=json.loads(data.decode('utf-8')),
             headers=headers,
             stream=True
         )
@@ -136,8 +136,14 @@ def request_data(
             for line in external_response.iter_lines():
                 if not line:
                     continue
-                # Decode bytes to string and yield with a newline separator
-                yield line.decode('utf-8') + "\n"
+                # Decode the line, elimina los primeros 6 caracteres (ej. "data: ") y parsea el JSON
+                try:
+                    json_data = json.loads(line.decode('utf-8')[6:])
+                    # Re-encode the JSON object to string and add newline separator
+                    yield json.dumps(json_data) + "\n"
+                except json.JSONDecodeError:
+                    # Si ocurre un error en el parseo, se puede omitir la línea o manejar el error
+                    continue
 
         # Return a StreamingResponse with the event generator
         return StreamingResponse(event_generator(), media_type="text/event-stream")
