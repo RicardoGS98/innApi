@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException, Depends, Body, Header
 from fastapi.params import Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import StreamingResponse
 
 load_dotenv(override=True)
 
@@ -116,16 +117,30 @@ def request_data(
             'id-coversation': id_coversation,
             'x-company': x_company
         }
+        # Enable streaming by setting stream=True
         external_response = requests.post(
             BOT_URL + '/user-question/',
             data=data,
-            headers=headers
+            headers=headers,
+            stream=True
         )
 
         if external_response.status_code != 200:
-            raise HTTPException(status_code=external_response.status_code, detail="Error fetching external data")
+            raise HTTPException(
+                status_code=external_response.status_code,
+                detail="Error fetching external data"
+            )
 
-        return external_response.json()
+        def event_generator():
+            # Iterate over the streaming response from the external API
+            for line in external_response.iter_lines():
+                if not line:
+                    continue
+                # Decode bytes to string and yield with a newline separator
+                yield line.decode('utf-8') + "\n"
+
+        # Return a StreamingResponse with the event generator
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
