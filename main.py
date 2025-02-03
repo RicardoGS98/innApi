@@ -117,10 +117,12 @@ def request_data(
             'id-coversation': id_coversation,
             'x-company': x_company
         }
+        if isinstance(data, str):
+            data = json.loads(data.decode('utf-8'))
         # Enable streaming by setting stream=True
         external_response = requests.post(
             BOT_URL + '/user-question/',
-            data=json.loads(data.decode('utf-8')),
+            data=data,
             headers=headers,
             stream=True
         )
