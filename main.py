@@ -2,6 +2,7 @@ import base64
 import json
 import os
 from datetime import datetime, timezone
+from functools import wraps
 
 import psycopg2
 import requests
@@ -96,7 +97,24 @@ def get_access_token():
     return response.json()
 
 
-# Endpoint protegido
+def validate_status_code(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            response = await func(*args, **kwargs)
+            # Valida status_code directamente aquí
+            data = response.json()
+            assert response.status_code == 200, data['error'] if 'error' in data else data
+            return data
+        except HTTPException:
+            raise  # reenvía excepciones HTTP sin modificación
+        except Exception as e:
+            # Captura cualquier otra excepción y envía status_code 500
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return wrapper
+
+
 @app.get("/token")
 async def get_token(payload: dict = Depends(verify_token)):
     return get_access_token()
@@ -155,123 +173,92 @@ def request_data(
 
 
 @app.get("/user-question")
+@validate_status_code
 def get_user_questions(
         id_coversation: str = Header(),
         authorization: str = Header()
 ):
-    try:
-
-        headers = {
-            'Authorization': authorization,
-            'id-coversation': id_coversation
-        }
-        external_response = requests.get(
-            BOT_URL + '/user-question/',
-            headers=headers
-        )
-
-        if external_response.status_code != 200:
-            raise HTTPException(status_code=external_response.status_code, detail="Error fetching external data")
-
-        return external_response.json()
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    headers = {
+        'Authorization': authorization,
+        'id-coversation': id_coversation
+    }
+    return requests.get(
+        BOT_URL + '/user-question/',
+        headers=headers
+    )
 
 
 @app.delete("/clean-conversation")
+@validate_status_code
 def delete_chat(
         conversation_id: str = Header(),
         authorization: str = Header()
 ):
-    try:
-        headers = {
-            'Authorization': authorization,
-            'Conversation-Id': conversation_id
-        }
-        external_response = requests.delete(
-            BOT_URL + '/clean-conversation/',
-            headers=headers
-        )
-        return external_response.json()
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    headers = {
+        'Authorization': authorization,
+        'Conversation-Id': conversation_id
+    }
+    return requests.delete(
+        BOT_URL + '/clean-conversation/',
+        headers=headers
+    )
 
 
 @app.post("/bug-report")
+@validate_status_code
 async def post_bug(
         company_id: str = Header(),
         conversation_id: str = Header(),
         comment: str = Header(),
         authorization: str = Header()
 ):
-    try:
-
-        headers = {
-            'Authorization': authorization,
-            'Conversation-Id': conversation_id,
-            'Company-Id': company_id,
-            'Comment': comment
-        }
-        response = requests.post(f"{BOT_URL}/bug-report/", headers=headers)
-
-        return response.json()
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    headers = {
+        'Authorization': authorization,
+        'Conversation-Id': conversation_id,
+        'Company-Id': company_id,
+        'Comment': comment
+    }
+    return requests.post(f"{BOT_URL}/bug-report/", headers=headers)
 
 
 @app.get("/create-talk")
+@validate_status_code
 async def create_talk(authorization: str = Header()):
-    try:
-        response = requests.get(f"{BOT_URL}/create-talk/", headers={'Authorization': authorization})
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return requests.get(f"{BOT_URL}/create-talk/", headers={'Authorization': authorization})
 
 
 @app.get("/talks")
+@validate_status_code
 async def get_talks(
         id_conversation: str = Query(None),
         user_email: str = Query(),
         authorization: str = Header()
 ):
-    try:
-        params = {"user_email": user_email}
-        if id_conversation:
-            params["id-conversation"] = id_conversation
-        response = requests.get(f"{BOT_URL}/talks/", params=params, headers={'Authorization': authorization})
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    params = {"user_email": user_email}
+    if id_conversation:
+        params["id-conversation"] = id_conversation
+    return requests.get(f"{BOT_URL}/talks/", params=params, headers={'Authorization': authorization})
 
 
 @app.post("/talks")
+@validate_status_code
 async def post_talks(
         data=Body(),
         authorization: str = Header()
 ):
-    try:
-        response = requests.post(f"{BOT_URL}/talks/", data=data, headers={'Authorization': authorization})
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return requests.post(f"{BOT_URL}/talks/", data=data, headers={'Authorization': authorization})
 
 
 @app.delete("/talks")
+@validate_status_code
 async def delete_talks(
         id_conversation: str = Header(),
         authorization: str = Header()
 ):
-    try:
-        response = requests.delete(
-            f"{BOT_URL}/talks/",
-            headers={'Authorization': authorization, 'id-conversation': id_conversation}
-        )
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return requests.delete(
+        f"{BOT_URL}/talks/",
+        headers={'Authorization': authorization, 'id-conversation': id_conversation}
+    )
 
 
 @app.get('/warnings')
