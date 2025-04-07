@@ -2,3 +2,5 @@
 .idea/
 .env
 *.pem
+.vscode/
+__pycache__/

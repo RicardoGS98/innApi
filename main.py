@@ -174,7 +174,7 @@ def request_data(
 
 @app.get("/user-question")
 @validate_status_code
-def get_user_questions(
+async def get_user_questions(
         id_coversation: str = Header(),
         authorization: str = Header()
 ):
@@ -190,7 +190,7 @@ def get_user_questions(
 
 @app.delete("/clean-conversation")
 @validate_status_code
-def delete_chat(
+async def delete_chat(
         conversation_id: str = Header(),
         authorization: str = Header()
 ):
@@ -252,12 +252,13 @@ async def post_talks(
 @app.delete("/talks")
 @validate_status_code
 async def delete_talks(
-        id_conversation: str = Header(),
+        data=Body(),
         authorization: str = Header()
 ):
     return requests.delete(
         f"{BOT_URL}/talks/",
-        headers={'Authorization': authorization, 'id-conversation': id_conversation}
+        data=data,
+        headers={'Authorization': authorization}
     )
 
 
