@@ -3,6 +3,9 @@ import json
 import os
 from datetime import datetime, timezone
 from functools import wraps
+import random
+import hashlib
+import time
 
 import psycopg2
 import requests
@@ -27,6 +30,10 @@ app.add_middleware(
 )
 
 TOKEN_URL = os.environ['TOKEN_URL']
+ODOO_URL = os.environ['ODOO_URL']
+ODOO_DB = os.environ['ODOO_DB']
+ODOO_USERNAME = os.environ['ODOO_USERNAME']
+ODOO_PASSWORD = os.environ['ODOO_PASSWORD']
 
 PAYLOAD = {
     'grant_type': 'password',
@@ -61,6 +68,24 @@ conn = psycopg2.connect(**DB_CONFIG)
 conn.autocommit = True  # Para confirmar automáticamente las transacciones
 cursor = conn.cursor()
 
+# Caché en memoria para las peticiones a Odoo
+odoo_cache = {}
+CACHE_DURATION = 300  # 5 minutos en segundos
+
+def generate_cache_key(data):
+    """
+    Genera una clave única para la caché basada en los parámetros de la petición.
+    """
+    # Convertir el diccionario a una cadena ordenada para asegurar consistencia
+    data_str = json.dumps(data, sort_keys=True)
+    return hashlib.md5(data_str.encode()).hexdigest()
+
+def is_cache_valid(cache_entry):
+    """
+    Verifica si una entrada en caché aún es válida (menos de 1 hora).
+    """
+    now = time.time()
+    return now - cache_entry['timestamp'] < CACHE_DURATION
 
 # Verifica la expiración
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -289,6 +314,132 @@ async def post_warning(data=Body(...)):
         return {"message": "Warning saved successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar la advertencia: {str(e)}")
+
+
+@app.post('/odoo')
+async def odoo_proxy(data=Body(...)):
+    """
+    Endpoint para servir como proxy entre el frontend Angular y Odoo.
+    Convierte peticiones POST a formato JSONRPC para Odoo.
+    Utiliza autenticación estándar de Odoo.
+    Incluye caché en memoria con duración de 1 hora.
+    """
+    try:
+        # Preparar la petición JSONRPC para Odoo
+        if not isinstance(data, dict):
+            if isinstance(data, bytes):
+                data = json.loads(data.decode('utf-8'))
+            else:
+                data = json.loads(data)
+        
+        # Generar clave para la caché
+        cache_key = generate_cache_key(data)
+        
+        # Verificar si la petición está en caché y es válida
+        if cache_key in odoo_cache and is_cache_valid(odoo_cache[cache_key]):
+            print("Obteniendo respuesta desde caché")
+            return odoo_cache[cache_key]['response']
+            
+        # URL base para JSON-RPC
+        jsonrpc_url = f"{ODOO_URL}/jsonrpc"
+        
+        # Primero autenticarse para obtener el uid
+        auth_params = {
+            "service": "common",
+            "method": "login",
+            "args": [ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]
+        }
+        
+        # Realizar la petición de autenticación
+        auth_data = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": auth_params,
+            "id": random.randint(0, 1000000000)
+        }
+        
+        auth_response = requests.post(
+            jsonrpc_url,
+            json=auth_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        auth_result = auth_response.json()
+        
+        # Verificar si hay error en la autenticación
+        if auth_result.get("error"):
+            raise HTTPException(
+                status_code=401, 
+                detail=f"Error de autenticación con Odoo: {auth_result['error']}"
+            )
+        
+        # Obtener el uid del resultado
+        uid = auth_result.get("result")
+        
+        if not uid:
+            raise HTTPException(
+                status_code=401,
+                detail="Autenticación fallida. UID no encontrado en la respuesta."
+            )
+        
+        # Ahora preparar la petición principal
+        model = data.get("params", {}).get("model")
+        method = data.get("params", {}).get("method")
+        args = data.get("params", {}).get("args", [])
+        kwargs = data.get("params", {}).get("kwargs", {})
+        
+        # Construir argumentos para execute
+        # Los primeros argumentos siempre son [DB, UID, PASSWORD, MODEL, METHOD]
+        execute_args = [ODOO_DB, uid, ODOO_PASSWORD, model, method]
+        
+        # Para métodos como search_count, necesitamos desempaquetar los args correctamente
+        # Los args en el JSON-RPC deben ser desplegados individualmente, no como una lista completa
+        if args:
+            # Extender los argumentos en vez de añadir la lista como un único argumento
+            execute_args.extend(args)
+        
+        # Crear la estructura para la petición de ejecución
+        execute_params = {
+            "service": "object",
+            "method": "execute",
+            "args": execute_args,
+            "kwargs": kwargs
+        }
+        
+        # Petición final para ejecutar el método
+        execute_data = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": execute_params,
+            "id": random.randint(0, 1000000000)
+        }
+        
+        # Realizar la petición a Odoo
+        execute_response = requests.post(
+            jsonrpc_url,
+            json=execute_data,
+            headers={"Content-Type": "application/json"}
+        )
+        
+        # Obtener la respuesta JSON
+        response_json = execute_response.json()
+        
+        # Guardar en caché
+        odoo_cache[cache_key] = {
+            'response': response_json,
+            'timestamp': time.time()
+        }
+        
+        # Limpiar entradas antiguas de la caché (opcional)
+        for k in list(odoo_cache.keys()):
+            if not is_cache_valid(odoo_cache[k]):
+                del odoo_cache[k]
+        
+        # Devolver la respuesta de Odoo al frontend
+        return response_json
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en la comunicación con Odoo: {str(e)}")
 
 
 if __name__ == '__main__':
