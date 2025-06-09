@@ -15,6 +15,9 @@ from fastapi.params import Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List, Any, Optional
+import httpx
 
 load_dotenv(override=True)
 
@@ -29,30 +32,31 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los headers
 )
 
-TOKEN_URL = os.environ['TOKEN_URL']
-ODOO_URL = os.environ['ODOO_URL']
-ODOO_DB = os.environ['ODOO_DB']
-ODOO_USERNAME = os.environ['ODOO_USERNAME']
-ODOO_PASSWORD = os.environ['ODOO_PASSWORD']
+TOKEN_URL = os.environ["TOKEN_URL"]
+ODOO_URL = os.environ["ODOO_URL"]
+ODOO_DB = os.environ["ODOO_DB"]
+ODOO_UID = os.environ["ODOO_UID"]
+ODOO_USERNAME = os.environ["ODOO_USERNAME"]
+ODOO_PASSWORD = os.environ["ODOO_PASSWORD"]
 
 PAYLOAD = {
-    'grant_type': 'password',
-    'client_id': os.environ['CLIENT_ID'],
-    'client_secret': os.environ['CLIENT_SECRET'],
-    'username': os.environ['USERNAME'],
-    'password': os.environ['PASSWORD']
+    "grant_type": "password",
+    "client_id": os.environ["CLIENT_ID"],
+    "client_secret": os.environ["CLIENT_SECRET"],
+    "username": os.environ["USERNAME"],
+    "password": os.environ["PASSWORD"],
 }
 
-BOT_URL = os.environ['BOT_URL']
+BOT_URL = os.environ["BOT_URL"]
 
 # Definimos el esquema Bearer para autenticación
 security = HTTPBearer()
 
-POSTGRES_USERNAME = os.environ['POSTGRES_USERNAME']
-POSTGRES_PASSWORD = os.environ['POSTGRES_PASSWORD']
-POSTGRES_HOST = os.environ['POSTGRES_HOST']
-POSTGRES_PORT = os.environ['POSTGRES_PORT']
-POSTGRES_DB = os.environ['POSTGRES_DB']
+POSTGRES_USERNAME = os.environ["POSTGRES_USERNAME"]
+POSTGRES_PASSWORD = os.environ["POSTGRES_PASSWORD"]
+POSTGRES_HOST = os.environ["POSTGRES_HOST"]
+POSTGRES_PORT = os.environ["POSTGRES_PORT"]
+POSTGRES_DB = os.environ["POSTGRES_DB"]
 
 # Configuración de la conexión a PostgreSQL
 DB_CONFIG = {
@@ -72,6 +76,7 @@ cursor = conn.cursor()
 odoo_cache = {}
 CACHE_DURATION = 300  # 5 minutos en segundos
 
+
 def generate_cache_key(data):
     """
     Genera una clave única para la caché basada en los parámetros de la petición.
@@ -80,20 +85,22 @@ def generate_cache_key(data):
     data_str = json.dumps(data, sort_keys=True)
     return hashlib.md5(data_str.encode()).hexdigest()
 
+
 def is_cache_valid(cache_entry):
     """
     Verifica si una entrada en caché aún es válida (menos de 1 hora).
     """
     now = time.time()
-    return now - cache_entry['timestamp'] < CACHE_DURATION
+    return now - cache_entry["timestamp"] < CACHE_DURATION
+
 
 # Verifica la expiración
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     # Dividir el token en sus partes
-    header, payload, signature = credentials.credentials.split('.')
+    header, payload, signature = credentials.credentials.split(".")
 
     # Decodificar Header y Payload desde Base64URL
-    decoded_payload = base64.urlsafe_b64decode(payload + '==').decode('utf-8')
+    decoded_payload = base64.urlsafe_b64decode(payload + "==").decode("utf-8")
 
     # Convertir a diccionarios de Python
     payload_json = json.loads(decoded_payload)
@@ -105,14 +112,12 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
             status_code=400, detail="El token no contiene la fecha de expiración."
         )
     if datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=401, detail="El token ha caducado."
-        )
+        raise HTTPException(status_code=401, detail="El token ha caducado.")
 
 
 # Función para obtener un nuevo token
 def get_access_token():
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
     response = requests.post(TOKEN_URL, data=PAYLOAD, headers=headers)
 
@@ -129,7 +134,9 @@ def validate_status_code(func):
             response = await func(*args, **kwargs)
             # Valida status_code directamente aquí
             data = response.json()
-            assert response.status_code == 200, data['error'] if 'error' in data else data
+            assert response.status_code == 200, (
+                data["error"] if "error" in data else data
+            )
             return data
         except HTTPException:
             raise  # reenvía excepciones HTTP sin modificación
@@ -148,32 +155,29 @@ async def get_token(payload: dict = Depends(verify_token)):
 # Endpoint en FastAPI que maneja la lógica
 @app.post("/user-question")
 def request_data(
-        data=Body(),
-        id_coversation: str = Header(),
-        x_company: str = Header(),
-        authorization: str = Header()
+    data=Body(),
+    id_coversation: str = Header(),
+    x_company: str = Header(),
+    authorization: str = Header(),
 ):
     try:
 
         headers = {
-            'Authorization': authorization,
-            'id-coversation': id_coversation,
-            'x-company': x_company
+            "Authorization": authorization,
+            "id-coversation": id_coversation,
+            "x-company": x_company,
         }
         if isinstance(data, bytes):
-            data = json.loads(data.decode('utf-8'))
+            data = json.loads(data.decode("utf-8"))
         # Enable streaming by setting stream=True
         external_response = requests.post(
-            BOT_URL + '/user-question/',
-            data=data,
-            headers=headers,
-            stream=True
+            BOT_URL + "/user-question/", data=data, headers=headers, stream=True
         )
 
         if external_response.status_code != 200:
             raise HTTPException(
                 status_code=external_response.status_code,
-                detail="Error fetching external data"
+                detail="Error fetching external data",
             )
 
         def event_generator():
@@ -183,7 +187,7 @@ def request_data(
                     continue
                 # Decode the line, elimina los primeros 6 caracteres (ej. "data: ") y parsea el JSON
                 try:
-                    json_data = json.loads(line.decode('utf-8')[6:])
+                    json_data = json.loads(line.decode("utf-8")[6:])
                     # Re-encode the JSON object to string and add newline separator
                     yield json.dumps(json_data) + "\n"
                 except json.JSONDecodeError:
@@ -200,48 +204,32 @@ def request_data(
 @app.get("/user-question")
 @validate_status_code
 async def get_user_questions(
-        id_coversation: str = Header(),
-        authorization: str = Header()
+    id_coversation: str = Header(), authorization: str = Header()
 ):
-    headers = {
-        'Authorization': authorization,
-        'id-coversation': id_coversation
-    }
-    return requests.get(
-        BOT_URL + '/user-question/',
-        headers=headers
-    )
+    headers = {"Authorization": authorization, "id-coversation": id_coversation}
+    return requests.get(BOT_URL + "/user-question/", headers=headers)
 
 
 @app.delete("/clean-conversation")
 @validate_status_code
-async def delete_chat(
-        conversation_id: str = Header(),
-        authorization: str = Header()
-):
-    headers = {
-        'Authorization': authorization,
-        'Conversation-Id': conversation_id
-    }
-    return requests.delete(
-        BOT_URL + '/clean-conversation/',
-        headers=headers
-    )
+async def delete_chat(conversation_id: str = Header(), authorization: str = Header()):
+    headers = {"Authorization": authorization, "Conversation-Id": conversation_id}
+    return requests.delete(BOT_URL + "/clean-conversation/", headers=headers)
 
 
 @app.post("/bug-report")
 @validate_status_code
 async def post_bug(
-        company_id: str = Header(),
-        conversation_id: str = Header(),
-        comment: str = Header(),
-        authorization: str = Header()
+    company_id: str = Header(),
+    conversation_id: str = Header(),
+    comment: str = Header(),
+    authorization: str = Header(),
 ):
     headers = {
-        'Authorization': authorization,
-        'Conversation-Id': conversation_id,
-        'Company-Id': company_id,
-        'Comment': comment
+        "Authorization": authorization,
+        "Conversation-Id": conversation_id,
+        "Company-Id": company_id,
+        "Comment": comment,
     }
     return requests.post(f"{BOT_URL}/bug-report/", headers=headers)
 
@@ -249,58 +237,58 @@ async def post_bug(
 @app.get("/create-talk")
 @validate_status_code
 async def create_talk(authorization: str = Header()):
-    return requests.get(f"{BOT_URL}/create-talk/", headers={'Authorization': authorization})
+    return requests.get(
+        f"{BOT_URL}/create-talk/", headers={"Authorization": authorization}
+    )
 
 
 @app.get("/talks")
 @validate_status_code
 async def get_talks(
-        id_conversation: str = Query(None),
-        user_email: str = Query(),
-        authorization: str = Header()
+    id_conversation: str = Query(None),
+    user_email: str = Query(),
+    authorization: str = Header(),
 ):
     params = {"user_email": user_email}
     if id_conversation:
         params["id-conversation"] = id_conversation
-    return requests.get(f"{BOT_URL}/talks/", params=params, headers={'Authorization': authorization})
+    return requests.get(
+        f"{BOT_URL}/talks/", params=params, headers={"Authorization": authorization}
+    )
 
 
 @app.post("/talks")
 @validate_status_code
-async def post_talks(
-        data=Body(),
-        authorization: str = Header()
-):
-    return requests.post(f"{BOT_URL}/talks/", data=data, headers={'Authorization': authorization})
+async def post_talks(data=Body(), authorization: str = Header()):
+    return requests.post(
+        f"{BOT_URL}/talks/", data=data, headers={"Authorization": authorization}
+    )
 
 
 @app.delete("/talks")
 @validate_status_code
-async def delete_talks(
-        data=Body(),
-        authorization: str = Header()
-):
+async def delete_talks(data=Body(), authorization: str = Header()):
     return requests.delete(
-        f"{BOT_URL}/talks/",
-        data=data,
-        headers={'Authorization': authorization}
+        f"{BOT_URL}/talks/", data=data, headers={"Authorization": authorization}
     )
 
 
-@app.get('/warnings')
+@app.get("/warnings")
 async def warnings():
     try:
         cursor.execute("SELECT data FROM warnings LIMIT 1;")
         result = cursor.fetchone()
         if result is None:
-            raise HTTPException(status_code=404, detail="No se encontraron advertencias.")
+            raise HTTPException(
+                status_code=404, detail="No se encontraron advertencias."
+            )
 
         return json.loads(result[0])
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post('/warnings')
+@app.post("/warnings")
 async def post_warning(data=Body(...)):
     """
     Endpoint para reemplazar la única advertencia en la tabla 'warnings'.
@@ -313,10 +301,12 @@ async def post_warning(data=Body(...)):
         conn.commit()
         return {"message": "Warning saved successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al guardar la advertencia: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error al guardar la advertencia: {str(e)}"
+        )
 
 
-@app.post('/odoo')
+@app.post("/odoo")
 async def odoo_proxy(data=Body(...)):
     """
     Endpoint para servir como proxy entre el frontend Angular y Odoo.
@@ -328,121 +318,219 @@ async def odoo_proxy(data=Body(...)):
         # Preparar la petición JSONRPC para Odoo
         if not isinstance(data, dict):
             if isinstance(data, bytes):
-                data = json.loads(data.decode('utf-8'))
+                data = json.loads(data.decode("utf-8"))
             else:
                 data = json.loads(data)
-        
+
         # Generar clave para la caché
         cache_key = generate_cache_key(data)
-        
+
         # Verificar si la petición está en caché y es válida
-        if cache_key in odoo_cache and is_cache_valid(odoo_cache[cache_key]):
-            print("Obteniendo respuesta desde caché")
-            return odoo_cache[cache_key]['response']
-            
+        # if cache_key in odoo_cache and is_cache_valid(odoo_cache[cache_key]):
+        #     print("Obteniendo respuesta desde caché")
+        #     return odoo_cache[cache_key]['response']
+
         # URL base para JSON-RPC
         jsonrpc_url = f"{ODOO_URL}/jsonrpc"
-        
+
         # Primero autenticarse para obtener el uid
         auth_params = {
             "service": "common",
             "method": "login",
-            "args": [ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD]
+            "args": [ODOO_DB, ODOO_USERNAME, ODOO_PASSWORD],
         }
-        
+
         # Realizar la petición de autenticación
         auth_data = {
             "jsonrpc": "2.0",
             "method": "call",
             "params": auth_params,
-            "id": random.randint(0, 1000000000)
+            "id": random.randint(0, 1000000000),
         }
-        
+
         auth_response = requests.post(
-            jsonrpc_url,
-            json=auth_data,
-            headers={"Content-Type": "application/json"}
+            jsonrpc_url, json=auth_data, headers={"Content-Type": "application/json"}
         )
-        
+
         auth_result = auth_response.json()
-        
+
         # Verificar si hay error en la autenticación
         if auth_result.get("error"):
             raise HTTPException(
-                status_code=401, 
-                detail=f"Error de autenticación con Odoo: {auth_result['error']}"
+                status_code=401,
+                detail=f"Error de autenticación con Odoo: {auth_result['error']}",
             )
-        
+
         # Obtener el uid del resultado
         uid = auth_result.get("result")
-        
+
         if not uid:
             raise HTTPException(
                 status_code=401,
-                detail="Autenticación fallida. UID no encontrado en la respuesta."
+                detail="Autenticación fallida. UID no encontrado en la respuesta.",
             )
-        
+
         # Ahora preparar la petición principal
         model = data.get("params", {}).get("model")
         method = data.get("params", {}).get("method")
         args = data.get("params", {}).get("args", [])
-        kwargs = data.get("params", {}).get("kwargs", {})
-        
+
         # Construir argumentos para execute
         # Los primeros argumentos siempre son [DB, UID, PASSWORD, MODEL, METHOD]
         execute_args = [ODOO_DB, uid, ODOO_PASSWORD, model, method]
-        
+
         # Para métodos como search_count, necesitamos desempaquetar los args correctamente
         # Los args en el JSON-RPC deben ser desplegados individualmente, no como una lista completa
         if args:
             # Extender los argumentos en vez de añadir la lista como un único argumento
             execute_args.extend(args)
-        
+
         # Crear la estructura para la petición de ejecución
         execute_params = {
             "service": "object",
             "method": "execute",
             "args": execute_args,
-            "kwargs": kwargs
         }
-        
+
         # Petición final para ejecutar el método
         execute_data = {
             "jsonrpc": "2.0",
             "method": "call",
             "params": execute_params,
-            "id": random.randint(0, 1000000000)
+            "id": random.randint(0, 1000000000),
         }
-        
+
         # Realizar la petición a Odoo
         execute_response = requests.post(
-            jsonrpc_url,
-            json=execute_data,
-            headers={"Content-Type": "application/json"}
+            jsonrpc_url, json=execute_data, headers={"Content-Type": "application/json"}
         )
-        
+
         # Obtener la respuesta JSON
         response_json = execute_response.json()
-        
+
         # Guardar en caché
-        odoo_cache[cache_key] = {
-            'response': response_json,
-            'timestamp': time.time()
-        }
-        
+        odoo_cache[cache_key] = {"response": response_json, "timestamp": time.time()}
+
         # Limpiar entradas antiguas de la caché (opcional)
         for k in list(odoo_cache.keys()):
             if not is_cache_valid(odoo_cache[k]):
                 del odoo_cache[k]
-        
+
         # Devolver la respuesta de Odoo al frontend
         return response_json
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en la comunicación con Odoo: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error en la comunicación con Odoo: {str(e)}"
+        )
 
 
-if __name__ == '__main__':
+class OdooPayload(BaseModel):
+    model: str
+    method: str
+    args: List[Any]
+    fields: Optional[List[str]] = []
+    offset: Optional[int] = None
+    limit: Optional[int] = None
+    order: Optional[str] = None
+    groupby: Optional[List[str]] = []
+    aggregates: Optional[List[str]] = []
+
+
+@app.post("/odoo/execute")
+async def odoo_execute(payload: OdooPayload):
+    """
+    Endpoint para servir como proxy entre el frontend Angular y Odoo.
+    Convierte peticiones POST a formato JSONRPC para Odoo.
+    Utiliza autenticación estándar de Odoo.
+    Incluye caché en memoria con duración de 1 hora.
+    """
+
+    # Validate that we have at least one arg to build the RPC call
+    if not payload.args:
+        raise HTTPException(status_code=400, detail="No arguments to execute")
+
+    # Base RPC args: [db, uid, password, model, method]
+    execute_args: List[Any] = [
+        ODOO_DB,
+        ODOO_UID,
+        ODOO_PASSWORD,
+        payload.model,
+        payload.method,
+    ]
+
+    # Materialize JSON arguments into Python types
+    domain_or_ids = payload.args
+
+    # Build the rest of the args by method type
+    if payload.method == "search":
+        # search(domain, offset, limit, order)
+        execute_args += [
+            domain_or_ids,
+            payload.offset,
+            payload.limit,
+            payload.order,
+        ]
+    elif payload.method == "search_read":
+        # search_read(domain, fields, offset, limit, order)
+        execute_args += [
+            domain_or_ids,
+            payload.fields,
+            payload.offset,
+            payload.limit,
+            payload.order,
+        ]
+    elif payload.method == "read":
+        # read(ids, fields)
+        execute_args += [
+            domain_or_ids,
+            payload.fields,
+        ]
+    elif payload.method == "search_count":
+        # search_count(domain)
+        execute_args.append(domain_or_ids)
+    elif payload.method == "read_group":
+        # read_group(domain, groupby, aggregates, offset, limit, order)
+        execute_args += [
+            domain_or_ids,
+            payload.aggregates,
+            payload.groupby,
+        ]
+    else:
+        # Defender against unexpected methods
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported method: {payload.method}"
+        )
+
+    # Construct the JSON-RPC request body
+    rpc_body = {
+        "jsonrpc": "2.0",
+        "method": "call",
+        "params": {
+            "service": "object",
+            "method": "execute",
+            "args": execute_args,
+        },
+        "id": random.randint(1, 2**31 - 1),
+    }
+
+    # Use httpx for async HTTP POST
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(ODOO_URL + "/jsonrpc", json=rpc_body, timeout=30.0)
+
+    # If Odoo returns an HTTP error, propagate it
+    data = resp.json()
+    if resp.status_code >= 400 or data.get("error"):
+        raise HTTPException(
+            status_code=500 if resp.status_code < 400 else resp.status_code,
+            detail=data.get("error", {}).get("data", {}),
+        )
+
+    # Return raw JSON from Odoo to the caller
+    return data.get("result", {})
+
+
+if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app)
