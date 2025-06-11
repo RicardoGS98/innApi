@@ -450,6 +450,14 @@ async def odoo_execute(payload: OdooPayload):
     if not payload.args:
         raise HTTPException(status_code=400, detail="No arguments to execute")
 
+    # Generar clave para la caché
+    cache_key = generate_cache_key(payload.__dict__)
+
+    # Verificar si la petición está en caché y es válida
+    if cache_key in odoo_cache and is_cache_valid(odoo_cache[cache_key]):
+        print("Obteniendo respuesta desde caché")
+        return odoo_cache[cache_key]["response"]
+
     # Base RPC args: [db, uid, password, model, method]
     execute_args: List[Any] = [
         ODOO_DB,
@@ -490,7 +498,7 @@ async def odoo_execute(payload: OdooPayload):
         # search_count(domain)
         execute_args.append(domain_or_ids)
     elif payload.method == "read_group":
-        # read_group(domain, groupby, aggregates, offset, limit, order)
+        # read_group(domain, aggregates, groupby, offset, limit, order)
         execute_args += [
             domain_or_ids,
             payload.aggregates,
@@ -509,7 +517,7 @@ async def odoo_execute(payload: OdooPayload):
         "params": {
             "service": "object",
             "method": "execute",
-            "args": execute_args,
+            "args": execute_args
         },
         "id": random.randint(1, 2**31 - 1),
     }
@@ -526,8 +534,18 @@ async def odoo_execute(payload: OdooPayload):
             detail=data.get("error", {}).get("data", {}),
         )
 
-    # Return raw JSON from Odoo to the caller
-    return data.get("result", {})
+    result = data.get("result", {})
+
+    # Guardar en caché
+    odoo_cache[cache_key] = {"response": result, "timestamp": time.time()}
+
+    # Limpiar entradas antiguas de la caché (opcional)
+    for k in list(odoo_cache.keys()):
+        if not is_cache_valid(odoo_cache[k]):
+            del odoo_cache[k]
+
+    # Return result to the caller
+    return result
 
 
 if __name__ == "__main__":
