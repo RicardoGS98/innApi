@@ -428,13 +428,14 @@ async def odoo_proxy(data=Body(...)):
 class OdooPayload(BaseModel):
     model: str
     method: str
-    args: List[Any]
+    args: Optional[List[Any]] = []
     fields: Optional[List[str]] = []
     offset: Optional[int] = None
     limit: Optional[int] = None
     order: Optional[str] = None
     groupby: Optional[List[str]] = []
     aggregates: Optional[List[str]] = []
+    lazy: Optional[bool] = False
 
 
 @app.post("/odoo/execute")
@@ -447,7 +448,7 @@ async def odoo_execute(payload: OdooPayload):
     """
 
     # Validate that we have at least one arg to build the RPC call
-    if not payload.args:
+    if not payload.args and payload.method != "fields_get":
         raise HTTPException(status_code=400, detail="No arguments to execute")
 
     # Generar clave para la caché
@@ -496,13 +497,25 @@ async def odoo_execute(payload: OdooPayload):
         ]
     elif payload.method == "search_count":
         # search_count(domain)
-        execute_args.append(domain_or_ids)
+        execute_args += [
+            domain_or_ids,
+        ]
     elif payload.method == "read_group":
         # read_group(domain, aggregates, groupby, offset, limit, order)
         execute_args += [
             domain_or_ids,
             payload.aggregates,
             payload.groupby,
+            payload.offset,
+            payload.limit,
+            payload.order,
+            len(payload.groupby) < 2 or payload.lazy,
+        ]
+    elif payload.method == "fields_get":
+        # fields_get(fields)
+        execute_args += [
+            [],
+            payload.fields,
         ]
     else:
         # Defender against unexpected methods
@@ -514,11 +527,7 @@ async def odoo_execute(payload: OdooPayload):
     rpc_body = {
         "jsonrpc": "2.0",
         "method": "call",
-        "params": {
-            "service": "object",
-            "method": "execute",
-            "args": execute_args
-        },
+        "params": {"service": "object", "method": "execute", "args": execute_args},
         "id": random.randint(1, 2**31 - 1),
     }
 
